@@ -1,0 +1,41 @@
+/* ---------------------------------------------------------
+   自定义样式
+   主题升级不会覆盖此文件，可以放心调整
+   --------------------------------------------------------- */
+
+/* 正文排版：让中文阅读更舒服 */
+.markdown-body {
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.markdown-body h2 {
+  margin-top: 2em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.markdown-body h3 {
+  margin-top: 1.6em;
+}
+
+.markdown-body img {
+  border-radius: 4px;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid #2f4154;
+  background: rgba(47, 65, 84, 0.04);
+}
+
+/* 首页文章卡片：更柔和的圆角 */
+.index-card {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* 导航栏站点名 */
+.navbar-brand {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}

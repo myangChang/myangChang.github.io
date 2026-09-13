@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+
+# Hexo 运行产物
+public/
+.deploy_git/
+db.json
+.hexo/
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/

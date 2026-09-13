@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search>
+  
+  
+  
+  <entry>
+    <title>用 Hexo + Fluid 重建本站</title>
+    <link href="/2026/09/13/hello-hexo/"/>
+    <url>/2026/09/13/hello-hexo/</url>
+    
+    <content type="html"><![CDATA[<p>本站从手写的 HTML 页面迁移到了 <strong>Hexo</strong>，主题选用 <strong>Fluid</strong>。这篇是第一篇文章，用来记录建站过程，也顺便当作写作模板。</p><span id="more"></span><h2 id="为什么是-Hexo-Fluid"><a href="#为什么是-Hexo-Fluid" class="headerlink" title="为什么是 Hexo + Fluid"></a>为什么是 Hexo + Fluid</h2><p>选型时主要考虑三点：</p><ol><li><strong>纯静态生成</strong> —— 生成结果是普通 HTML&#x2F;CSS&#x2F;JS，天然适合 GitHub Pages，不需要服务器和数据库。</li><li><strong>写作即 Markdown</strong> —— 新文章就是一个 <code>.md</code> 文件，写完提交，站点自动更新。</li><li><strong>主题成熟</strong> —— <a href="https://hexo.fluid-dev.com/">Fluid</a> 是 Hexo 社区最流行的主题之一，界面简洁大气，自带暗色模式、本地搜索、响应式布局，中文文档也很完善。</li></ol><h2 id="目录结构"><a href="#目录结构" class="headerlink" title="目录结构"></a>目录结构</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">.<br>├── _config.yml          # 站点配置（标题、作者、插件等）<br>├── _config.fluid.yml    # 主题配置（外观、菜单、社交链接等）<br>├── source/<br>│   ├── _posts/          # 文章，写作都在这里<br>│   ├── _drafts/         # 草稿，不会被发布<br>│   ├── about/           # 关于页<br>│   ├── categories/      # 分类页<br>│   ├── tags/            # 标签页<br>│   ├── css/             # 自定义样式<br>│   └── img/             # 图片资源<br>├── scaffolds/           # 新建文章/页面的模板<br>└── docs/                # 生成的静态站点（GitHub Pages 发布目录）<br></code></pre></td></tr></table></figure><h2 id="日常写作流程"><a href="#日常写作流程" class="headerlink" title="日常写作流程"></a>日常写作流程</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 新建一篇文章</span><br>npm run new -- <span class="hljs-string">&quot;我的第一篇文章&quot;</span><br><br><span class="hljs-comment"># 本地预览，浏览器打开 http://localhost:4000</span><br>npm run dev<br><br><span class="hljs-comment"># 生成静态站点到 docs/</span><br>npm run build<br><br><span class="hljs-comment"># 生成并推送到 GitHub，稍等片刻线上就更新了</span><br>npm run publish<br></code></pre></td></tr></table></figure><h2 id="写作之外的小事"><a href="#写作之外的小事" class="headerlink" title="写作之外的小事"></a>写作之外的小事</h2><ul><li>草稿放在 <code>source/_drafts/</code>，<code>npm run dev</code> 可以看到，正式生成时会忽略；</li><li>图片统一放 <code>source/img/</code>，文章里用 <code>/img/xxx.png</code> 引用；</li><li>想在首页显示摘要，在正文里加一行 <code>&lt;!-- more --&gt;</code>。</li></ul><p>就写到这里，接下来可以开始记录技术笔记了。</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>博客</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Hexo</tag>
+      
+      <tag>Fluid</tag>
+      
+      <tag>GitHub Pages</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Hexo 常用命令速查</title>
+    <link href="/2026/09/12/hexo-cheatsheet/"/>
+    <url>/2026/09/12/hexo-cheatsheet/</url>
+    
+    <content type="html"><![CDATA[<p>把 Hexo 日常会用到的命令整理成一张表，方便随时查阅。</p><span id="more"></span><h2 id="命令速查"><a href="#命令速查" class="headerlink" title="命令速查"></a>命令速查</h2><table><thead><tr><th>命令</th><th>作用</th></tr></thead><tbody><tr><td><code>npm run new -- &quot;标题&quot;</code></td><td>新建文章（生成到 <code>source/_posts/</code>）</td></tr><tr><td><code>npm run new -- &quot;标题&quot; --draft</code></td><td>新建草稿（生成到 <code>source/_drafts/</code>）</td></tr><tr><td><code>npm run dev</code></td><td>本地预览，包含草稿，默认 <a href="http://localhost:4000/">http://localhost:4000</a></td></tr><tr><td><code>npm run build</code></td><td>生成静态站点到 <code>docs/</code></td></tr><tr><td><code>npm run clean</code></td><td>清除缓存和已生成的文件</td></tr><tr><td><code>npm run publish</code></td><td>重新生成并推送到 GitHub</td></tr></tbody></table><h2 id="文章头信息"><a href="#文章头信息" class="headerlink" title="文章头信息"></a>文章头信息</h2><p>每篇文章顶部的 <code>---</code> 之间是 Front-matter，常用字段：</p><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-meta">---</span><br><span class="hljs-attr">title:</span> <span class="hljs-string">文章标题</span><br><span class="hljs-attr">date:</span> <span class="hljs-number">2026-09-13 10:00:00</span><br><span class="hljs-attr">categories:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">分类名</span><br><span class="hljs-attr">tags:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">标签一</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">标签二</span><br><span class="hljs-meta">---</span><br></code></pre></td></tr></table></figure><h2 id="常见问题"><a href="#常见问题" class="headerlink" title="常见问题"></a>常见问题</h2><p><strong>改了配置没生效？</strong> 先 <code>npm run clean</code> 再重新生成，Hexo 会缓存渲染结果。</p><p><strong>文章没出现在首页？</strong> 检查 <code>date</code> 是否写成了未来的时间，默认情况下未来文章不会生成。</p><p><strong>想调整首页每页文章数？</strong> 修改 <code>_config.yml</code> 里的 <code>index_generator.per_page</code>。</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>工具</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Hexo</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Markdown 写作示例</title>
+    <link href="/2026/09/11/markdown-demo/"/>
+    <url>/2026/09/11/markdown-demo/</url>
+    
+    <content type="html"><![CDATA[<p>这篇用来展示常见的 Markdown 写法在站点上的渲染效果，写文章时可以直接参考。</p><span id="more"></span><h2 id="标题与段落"><a href="#标题与段落" class="headerlink" title="标题与段落"></a>标题与段落</h2><p>正文直接写即可，段落之间空一行。<strong>加粗</strong>、<em>斜体</em>、<del>删除线</del>、<code>行内代码</code>。</p><h2 id="列表"><a href="#列表" class="headerlink" title="列表"></a>列表</h2><p>无序列表：</p><ul><li>第一项</li><li>第二项<ul><li>嵌套项</li></ul></li></ul><p>有序列表：</p><ol><li>第一步</li><li>第二步</li></ol><h2 id="引用与链接"><a href="#引用与链接" class="headerlink" title="引用与链接"></a>引用与链接</h2><blockquote><p>好的文档应该让读者一次读懂，而不是读第二遍。</p></blockquote><p>链接写法：<a href="https://hexo.io/zh-cn/docs/">Hexo 官方文档</a>。</p><h2 id="代码块"><a href="#代码块" class="headerlink" title="代码块"></a>代码块</h2><figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs javascript"><span class="hljs-keyword">const</span> posts = [<span class="hljs-string">&#x27;写作&#x27;</span>, <span class="hljs-string">&#x27;阅读&#x27;</span>, <span class="hljs-string">&#x27;思考&#x27;</span>];<br><br>posts.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">item, index</span>) =&gt;</span> &#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">$&#123;index + <span class="hljs-number">1</span>&#125;</span>. <span class="hljs-subst">$&#123;item&#125;</span>`</span>);<br>&#125;);<br></code></pre></td></tr></table></figure><h2 id="表格"><a href="#表格" class="headerlink" title="表格"></a>表格</h2><table><thead><tr><th>语法</th><th>效果</th></tr></thead><tbody><tr><td><code>**文字**</code></td><td><strong>加粗</strong></td></tr><tr><td><code>*文字*</code></td><td><em>斜体</em></td></tr><tr><td><code>`代码`</code></td><td><code>代码</code></td></tr></tbody></table><h2 id="图片"><a href="#图片" class="headerlink" title="图片"></a>图片</h2><p>把图片放进 <code>source/img/</code>，然后这样引用：</p><figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs markdown">![<span class="hljs-string">图片说明</span>](<span class="hljs-link">/img/example.png</span>)<br></code></pre></td></tr></table></figure>]]></content>
+    
+    
+    <categories>
+      
+      <category>写作</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Markdown</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  
+</search>

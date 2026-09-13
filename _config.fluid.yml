@@ -1,0 +1,132 @@
+# ==========================================================
+# Fluid 主题配置
+#
+# 这里只写需要覆盖主题默认值的项，其余保持主题默认。
+# 完整配置项与说明: https://hexo.fluid-dev.com/docs/guide/
+# ==========================================================
+
+# ---------------- 全局 ----------------
+
+# 浏览器标签页图标与 iOS 主屏图标
+favicon: /img/favicon.png
+apple_touch_icon: /img/favicon.png
+
+# 字体
+font:
+  font_size: 16px
+  letter_spacing: 0.02em
+
+# 自定义样式
+custom_css:
+  - /css/custom.css
+
+# 页面配色：深蓝灰为主色调，简洁耐看
+color:
+  body_bg_color: "#f7f8fa"
+  post_link_color: "#1b6ec2"
+  link_hover_color: "#2f4154"
+
+# 暗色模式：跟随系统，也可手动切换
+dark_mode:
+  enable: true
+  default: auto
+
+# 细节功能
+fun_features:
+  # 首页副标题打字机效果
+  typing:
+    enable: true
+    typeSpeed: 80
+    loop: false
+    scope: [home]
+  # 正文标题锚点
+  anchorjs:
+    enable: true
+    placement: right
+    visible: hover
+  # 顶部加载进度条
+  progressbar:
+    enable: true
+    color: "#2f4154"
+
+# ---------------- 导航栏 ----------------
+navbar:
+  # 留空则使用 _config.yml 中的 title
+  blog_title: ""
+  menu:
+    - { key: "home", link: "/", icon: "iconfont icon-home-fill" }
+    - { key: "archive", link: "/archives/", icon: "iconfont icon-archive-fill" }
+    - { key: "category", link: "/categories/", icon: "iconfont icon-category-fill" }
+    - { key: "tag", link: "/tags/", icon: "iconfont icon-tags-fill" }
+    - { key: "about", link: "/about/", icon: "iconfont icon-user-fill" }
+
+# ---------------- 搜索 ----------------
+# 索引文件由主题生成，无需额外安装搜索插件
+search:
+  enable: true
+  path: /local-search.xml
+  generate_path: /local-search.xml
+  field: post
+  content: true
+
+# ---------------- 首页 ----------------
+index:
+  banner_img: /img/banner.svg
+  banner_img_height: 100
+  banner_mask_alpha: 0.2
+  slogan:
+    enable: true
+    text:
+      - "记录技术、学习与思考"
+      - "把踩过的坑写下来"
+  auto_excerpt:
+    enable: true
+  post_meta:
+    date: true
+    category: true
+    tag: true
+
+# ---------------- 文章页 ----------------
+post:
+  banner_img: /img/banner.svg
+  banner_img_height: 60
+  banner_mask_alpha: 0.3
+
+# ---------------- 归档 / 分类 / 标签 / 自定义页 ----------------
+archive:
+  banner_img: /img/banner.svg
+  banner_img_height: 45
+  banner_mask_alpha: 0.3
+
+category:
+  banner_img: /img/banner.svg
+  banner_img_height: 45
+  banner_mask_alpha: 0.3
+
+tag:
+  banner_img: /img/banner.svg
+  banner_img_height: 45
+  banner_mask_alpha: 0.3
+
+page:
+  banner_img: /img/banner.svg
+  banner_img_height: 45
+  banner_mask_alpha: 0.3
+
+# ---------------- 友链页 ----------------
+# 暂未使用友情链接，关闭后不再生成 /links/ 页面
+links:
+  enable: false
+
+# ---------------- 关于页 ----------------
+about:
+  banner_img: /img/banner.svg
+  banner_img_height: 45
+  banner_mask_alpha: 0.3
+  avatar: /img/avatar.png
+  name: "myangChang"
+  intro: "记录技术、学习与思考"
+  icons:
+    - { class: "iconfont icon-github-fill", link: "https://github.com/myangChang", tip: "GitHub" }
+    # 需要补充邮箱、微信等图标时，按下面格式添加（图标 class 见主题文档的图标页）
+    # - { class: "iconfont icon-mail-fill", link: "mailto:you@example.com", tip: "邮箱" }

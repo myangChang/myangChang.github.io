@@ -1,0 +1,91 @@
+# ==========================================================
+# Hexo 站点配置
+# 文档: https://hexo.io/zh-cn/docs/configuration
+# 外观相关配置在 _config.fluid.yml 中
+# ==========================================================
+
+# ---------------- 站点信息 ----------------
+title: myangChang
+subtitle: 记录技术、学习与思考
+description: 记录技术、学习与思考的个人技术博客
+author: myangChang
+language: zh-CN
+timezone: Asia/Shanghai
+
+# ---------------- URL ----------------
+url: https://myangchang.github.io
+root: /
+permalink: :year/:month/:day/:title/
+permalink_defaults:
+pretty_urls:
+  trailing_index: true
+  trailing_html: true
+
+# ---------------- 目录 ----------------
+source_dir: source
+# 生成的静态站点输出到 docs/，GitHub Pages 从该目录发布
+public_dir: docs
+tag_dir: tags
+archive_dir: archives
+category_dir: categories
+code_dir: downloads/code
+i18n_dir: :lang
+skip_render:
+
+# ---------------- 写作 ----------------
+new_post_name: :title.md
+default_layout: post
+titlecase: false
+external_link:
+  enable: true
+  field: site
+  exclude:
+filename_case: 0
+render_drafts: false
+post_asset_folder: false
+relative_link: false
+future: true
+
+# 代码高亮（代码块样式可在 _config.fluid.yml 中调整）
+highlight:
+  auto_detect: false
+  line_number: true
+  tab_replace: ""
+  wrap: true
+  hljs: false
+
+# ---------------- 首页 ----------------
+index_generator:
+  path: ""
+  per_page: 10
+  order_by: -date
+
+# ---------------- 归档页 ----------------
+archive_generator:
+  enabled: true
+  per_page: 20
+  yearly: true
+  monthly: true
+  daily: false
+
+# ---------------- 分类与标签 ----------------
+default_category: uncategorized
+category_map:
+tag_map:
+
+# ---------------- 日期格式 ----------------
+date_format: YYYY-MM-DD
+time_format: HH:mm:ss
+updated_option: mtime
+
+# ---------------- 分页 ----------------
+per_page: 10
+pagination_dir: page
+
+# ---------------- 主题 ----------------
+theme: fluid
+
+# ---------------- 发布 ----------------
+# 本站由 GitHub Pages 直接发布 docs/ 目录，因此不需要 hexo-deployer-git
+deploy:
+  type: ""
