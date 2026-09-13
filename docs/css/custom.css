@@ -39,3 +39,16 @@
   font-weight: 600;
   letter-spacing: 0.03em;
 }
+
+/* 导航栏链接 hover / focus：亮蓝色，避免在深色导航栏上看不清 */
+.navbar .nav-item .nav-link:hover,
+.navbar .nav-item .nav-link:focus,
+.navbar .dropdown-item:hover,
+.navbar .dropdown-item:focus {
+  color: #4fc3f7;
+}
+
+/* 深色背景处的链接 hover 同样保持可读 */
+.footer a:hover {
+  color: #4fc3f7;
+}

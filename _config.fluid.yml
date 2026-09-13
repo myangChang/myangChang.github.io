@@ -24,7 +24,8 @@ custom_css:
 color:
   body_bg_color: "#f7f8fa"
   post_link_color: "#1b6ec2"
-  link_hover_color: "#2f4154"
+  # 链接 hover 颜色：导航栏是深色背景，不能用深色，否则鼠标移上去会看不清
+  link_hover_color: "#30a9de"
 
 # 暗色模式：跟随系统，也可手动切换
 dark_mode:
@@ -72,7 +73,7 @@ search:
 # ---------------- 首页 ----------------
 index:
   banner_img: /img/banner.svg
-  banner_img_height: 100
+  banner_img_height: 60
   banner_mask_alpha: 0.2
   slogan:
     enable: true
