@@ -1,0 +1,1100 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="myangChang">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="抢单系统的难点，不是把 UPDATE 语句写得足够快，而是让几十万请求同时到达时，系统仍然满足三个约束：一个订单最多一个赢家、用户重试不会重复抢、最终结果可追踪、可修复。 这篇文章给出一套可以直接落地的 Java 技术方案：Redis 负责瞬时裁决，Redis Stream 或消息队列负责串行化写入，MySQL 负责最终事实，定时任务负责最终一致性。文中的代码以 Spring Boot + Let">
+<meta property="og:type" content="article">
+<meta property="og:title" content="高并发抢单系统设计：从 Redis 原子判重到 MySQL 最终一致性的 Java 实践">
+<meta property="og:url" content="https://myangchang.github.io/2026/09/16/high-concurrency-order-grabbing-system-design/index.html">
+<meta property="og:site_name" content="myangChang">
+<meta property="og:description" content="抢单系统的难点，不是把 UPDATE 语句写得足够快，而是让几十万请求同时到达时，系统仍然满足三个约束：一个订单最多一个赢家、用户重试不会重复抢、最终结果可追踪、可修复。 这篇文章给出一套可以直接落地的 Java 技术方案：Redis 负责瞬时裁决，Redis Stream 或消息队列负责串行化写入，MySQL 负责最终事实，定时任务负责最终一致性。文中的代码以 Spring Boot + Let">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-16T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-16T02:46:58.809Z">
+<meta property="article:author" content="myangChang">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="Spring Boot">
+<meta property="article:tag" content="抢单">
+<meta property="article:tag" content="高并发">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  
+  <title>高并发抢单系统设计：从 Redis 原子判重到 MySQL 最终一致性的 Java 实践 - myangChang</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/c/font_1749284_5i9bdhy70f8.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/c/font_1736178_k526ubmyhba.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+  
+<link rel="stylesheet" href="/css/custom.css">
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"myangchang.github.io","root":"/","version":"1.9.9","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":["home"]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#2f4154","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"expand_all":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false},"openkounter":{"server_url":"https://open-kounter.mintimate.cn","path":"window.location.pathname","ignore_local":false},"umami":{"src":null,"website_id":null,"domains":null,"start_time":"2024-01-01T00:00:00.000Z","token":null,"api_server":null}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 60vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>myangChang</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content (desktop) -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Mobile grid menu overlay -->
+<div id="mobile-grid-menu" class="d-lg-none">
+  <div class="mobile-grid-menu-inner">
+    <div class="container">
+      <div class="row">
+        
+          
+          
+          
+          
+            <div class="col-4 mobile-grid-cell">
+              <a href="/" target="_self">
+                <div class="mobile-grid-item">
+                  <i class="iconfont icon-home-fill"></i>
+                  <span>首页</span>
+                </div>
+              </a>
+            </div>
+          
+        
+          
+          
+          
+          
+            <div class="col-4 mobile-grid-cell">
+              <a href="/archives/" target="_self">
+                <div class="mobile-grid-item">
+                  <i class="iconfont icon-archive-fill"></i>
+                  <span>归档</span>
+                </div>
+              </a>
+            </div>
+          
+        
+          
+          
+          
+          
+            <div class="col-4 mobile-grid-cell">
+              <a href="/categories/" target="_self">
+                <div class="mobile-grid-item">
+                  <i class="iconfont icon-category-fill"></i>
+                  <span>分类</span>
+                </div>
+              </a>
+            </div>
+          
+        
+          
+          
+          
+          
+            <div class="col-4 mobile-grid-cell">
+              <a href="/tags/" target="_self">
+                <div class="mobile-grid-item">
+                  <i class="iconfont icon-tags-fill"></i>
+                  <span>标签</span>
+                </div>
+              </a>
+            </div>
+          
+        
+          
+          
+          
+          
+            <div class="col-4 mobile-grid-cell">
+              <a href="/about/" target="_self">
+                <div class="mobile-grid-item">
+                  <i class="iconfont icon-user-fill"></i>
+                  <span>关于</span>
+                </div>
+              </a>
+            </div>
+          
+        
+        
+          <div class="col-4 mobile-grid-cell" id="mobile-search-btn">
+            <a href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <div class="mobile-grid-item">
+                <i class="iconfont icon-search"></i>
+                <span>搜索</span>
+              </div>
+            </a>
+          </div>
+        
+        
+          <div class="col-4 mobile-grid-cell" id="mobile-color-toggle-btn"
+               data-label-light="开灯"
+               data-label-dark="关灯">
+            <a href="javascript:;" aria-label="Color Toggle">
+              <div class="mobile-grid-item">
+                <i class="iconfont icon-dark" id="mobile-color-toggle-icon"></i>
+                <span id="mobile-color-toggle-label">关灯</span>
+              </div>
+            </a>
+          </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/banner.svg') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle">高并发抢单系统设计：从 Redis 原子判重到 MySQL 最终一致性的 Java 实践</span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-09-16 10:00" pubdate>
+          2026年9月16日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          10k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          86 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">高并发抢单系统设计：从 Redis 原子判重到 MySQL 最终一致性的 Java 实践</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>抢单系统的难点，不是把 <code>UPDATE</code> 语句写得足够快，而是让几十万请求同时到达时，系统仍然满足三个约束：<strong>一个订单最多一个赢家、用户重试不会重复抢、最终结果可追踪、可修复</strong>。</p>
+<p>这篇文章给出一套可以直接落地的 Java 技术方案：Redis 负责瞬时裁决，Redis Stream 或消息队列负责串行化写入，MySQL 负责最终事实，定时任务负责最终一致性。文中的代码以 Spring Boot + Lettuce + Redis Cluster + MySQL 为例。</p>
+<span id="more"></span>
+
+<h2 id="一、先明确抢单的语义"><a href="#一、先明确抢单的语义" class="headerlink" title="一、先明确抢单的语义"></a>一、先明确抢单的语义</h2><p>不同业务里的“抢单”可能有两种模型：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>示例</th>
+<th>核心约束</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单资源归属</td>
+<td>一个外卖订单只能被一个骑手抢到</td>
+<td>同一个 <code>orderId</code> 只能有一个赢家</td>
+</tr>
+<tr>
+<td>批量库存</td>
+<td>一百张优惠券被很多用户抢</td>
+<td>成功数量不能超过库存，且同一用户可配置限购</td>
+</tr>
+</tbody></table>
+<p>下面的方案以单资源归属为主线，批量库存只需要把“订单状态”替换成“活动库存 + 成功集合”，核心思想完全一致。</p>
+<p>一个可接受的用户侧流程是：</p>
+<ol>
+<li>用户点击抢单，服务端快速返回 <code>202 Accepted</code> 和 <code>claimId</code>；</li>
+<li>页面显示“排队中”，轮询或通过 WebSocket 获取结果；</li>
+<li>只有 MySQL 事务提交后，才把状态推进到 <code>ASSIGNED</code>；</li>
+<li>重复请求使用同一个幂等键，拿回同一个结果。</li>
+</ol>
+<p>这里的强一致对象不是“所有请求立即看到最终状态”，而是“<strong>不重复归属、不超卖、最终可修复</strong>”。对抢单这种极短窗口的场景，先把最热的判断放到 Redis，再用消息系统削峰，是更合理的取舍。</p>
+<h2 id="二、容量估算与目标"><a href="#二、容量估算与目标" class="headerlink" title="二、容量估算与目标"></a>二、容量估算与目标</h2><p>假设一次活动有 10 万用户同时抢 5 千个订单，峰值请求可能达到 20 万 QPS。真正会进入数据库的请求，只有 Redis 裁决成功的 5 千个左右，失败请求应该在 Redis 层直接结束。</p>
+<p>可以给系统定一组可验证的目标：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>建议目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>网关 P99</td>
+<td>小于 10 ms</td>
+</tr>
+<tr>
+<td>Redis 裁决 P99</td>
+<td>小于 20 ms</td>
+</tr>
+<tr>
+<td>用户拿到排队结果</td>
+<td>小于 300 ms</td>
+</tr>
+<tr>
+<td>最终归属确认</td>
+<td>正常时 1 s 内，异常时可降级</td>
+</tr>
+<tr>
+<td>重复归属</td>
+<td>0</td>
+</tr>
+<tr>
+<td>超卖</td>
+<td>0</td>
+</tr>
+<tr>
+<td>已受理但永久丢失</td>
+<td>0，通过补偿任务修复</td>
+</tr>
+</tbody></table>
+<p>容量上不要平均分配：热点订单和普通订单的请求密度可能相差几个数量级。Redis Cluster 至少做多分片、多副本，客户端使用 Lettuce，并设置合理的命令超时、重连和拓扑刷新参数。数据库连接池不能因为 Redis 快就无限放大，否则数据库故障时会把压力转成连接风暴。</p>
+<h2 id="三、总体架构"><a href="#三、总体架构" class="headerlink" title="三、总体架构"></a>三、总体架构</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  |<br>  v<br>CDN/WAF -&gt; Spring Cloud Gateway<br>              | 鉴权、限流、参数校验<br>              v<br>        Claim Service（无状态）<br>              | EVALSHA<br>              v<br>        Redis Cluster<br>        ├─ 订单裁决状态<br>        ├─ 幂等记录<br>        └─ 抢单事件 Stream<br>              |<br>              | consumer group<br>              v<br>        订单消费者 / MySQL Shard<br>              |<br>              v<br>         Kafka / WebSocket / 推送<br></code></pre></td></tr></table></figure>
+
+<p>各层职责要划清楚：</p>
+<ul>
+<li>网关只做鉴权、基础参数校验、限流和流量染色，不查 MySQL；</li>
+<li>抢单服务只做 Redis 原子裁决，不直接在热点路径上更新订单表；</li>
+<li>Redis Stream 或 Kafka 负责把已受理事件可靠地交给消费者；</li>
+<li>消费者在事务中写 MySQL，成功后更新 Redis 最终状态；</li>
+<li>通知系统只消费数据库确认后的事件，不能把“Redis 赢了”直接当成最终成功。</li>
+</ul>
+<h3 id="为什么不用数据库行锁硬扛"><a href="#为什么不用数据库行锁硬扛" class="headerlink" title="为什么不用数据库行锁硬扛"></a>为什么不用数据库行锁硬扛</h3><p>如果每个请求执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> trade_order<br><span class="hljs-keyword">SET</span> winner_user_id <span class="hljs-operator">=</span> ?<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> ? <span class="hljs-keyword">AND</span> winner_user_id <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span>;<br></code></pre></td></tr></table></figure>
+
+<p>同一订单的所有请求都会竞争同一行锁。QPS 高时，大量线程堆积在数据库连接池和 InnoDB 锁等待上，Redis、网关再快也无法解决问题。这个 SQL 不是错的，它适合作最后一道防线，但不适合作为入口裁决。</p>
+<p>同样，不建议用 <code>synchronized</code>、本地锁或单个 Redis 分布式锁来解决热点订单问题。前者只能锁住单个 JVM，后者会把所有请求串行化，并且还要处理锁超时、续期和故障恢复。</p>
+<h2 id="四、Redis-数据结构设计"><a href="#四、Redis-数据结构设计" class="headerlink" title="四、Redis 数据结构设计"></a>四、Redis 数据结构设计</h2><p>Redis 里的每个订单需要保存一组状态。为了兼容 Redis Cluster，所有参与同一个 Lua 脚本的 key 必须落在同一个哈希槽中，因此用分区号作为 hash tag：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">order:&#123;p:12&#125;:10086:state<br>claim:stream:&#123;p:12&#125;<br>claim:idem:&#123;p:12&#125;:user_7:request_abc<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>p:12</code> 是根据订单 ID 计算出的逻辑分区，例如 <code>Math.floorMod(Long.hashCode(orderId), 64)</code>。订单状态、事件流和幂等键使用同一个 tag，Lua 脚本才可以在集群环境下执行。</p>
+<p>订单状态 Hash 至少包含以下字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>status</code></td>
+<td><code>AVAILABLE</code>、<code>CLAIMING</code>、<code>ASSIGNED</code>、<code>SOLD</code>、<code>CLOSED</code>、<code>FAILED</code></td>
+</tr>
+<tr>
+<td><code>winner</code></td>
+<td>当前赢家用户 ID</td>
+</tr>
+<tr>
+<td><code>requestId</code></td>
+<td>当前请求 ID，用于识别幂等重试</td>
+</tr>
+<tr>
+<td><code>claimId</code></td>
+<td>全局追踪 ID</td>
+</tr>
+<tr>
+<td><code>leaseUntil</code></td>
+<td>处理租约截止时间，防止消费者异常时永久卡住</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>状态版本，防止旧消费者覆盖新状态</td>
+</tr>
+</tbody></table>
+<p>状态流转必须单向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">AVAILABLE -&gt; CLAIMING -&gt; ASSIGNED<br>                  |<br>                  +-&gt; FAILED / RELEASED<br></code></pre></td></tr></table></figure>
+
+<p><code>sold</code> 不是业务成功状态，而是“这个订单已经被别人锁定或已经售出”的外部结果。<code>AVAILABLE</code> 只表示 Redis 当前允许尝试，不等于数据库已经成功分配。</p>
+<h2 id="五、Lua：一次原子裁决完成四件事"><a href="#五、Lua：一次原子裁决完成四件事" class="headerlink" title="五、Lua：一次原子裁决完成四件事"></a>五、Lua：一次原子裁决完成四件事</h2><p>Lua 脚本的价值不是“看起来高级”，而是让下面这些动作在一次 Redis 原子执行中完成：</p>
+<ol>
+<li>判断订单是否可抢；</li>
+<li>判断是不是同一个幂等请求；</li>
+<li>写入 <code>CLAIMING</code> 和赢家信息；</li>
+<li>将事件写入 Stream。</li>
+</ol>
+<p>核心脚本可以写成这样：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><code class="hljs lua"><span class="hljs-comment">-- KEYS[1] order state</span><br><span class="hljs-comment">-- KEYS[2] claim stream</span><br><span class="hljs-comment">-- KEYS[3] idempotency key</span><br><span class="hljs-comment">-- ARGV[1] userId</span><br><span class="hljs-comment">-- ARGV[2] requestId</span><br><span class="hljs-comment">-- ARGV[3] claimId</span><br><span class="hljs-comment">-- ARGV[4] nowMillis</span><br><span class="hljs-comment">-- ARGV[5] leaseMillis</span><br><span class="hljs-comment">-- ARGV[6] orderId</span><br><br><span class="hljs-keyword">local</span> state = redis.call(<span class="hljs-string">&#x27;HMGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;status&#x27;</span>, <span class="hljs-string">&#x27;winner&#x27;</span>, <span class="hljs-string">&#x27;requestId&#x27;</span>, <span class="hljs-string">&#x27;claimId&#x27;</span>)<br><span class="hljs-keyword">local</span> <span class="hljs-built_in">status</span> = state[<span class="hljs-number">1</span>]<br><br><span class="hljs-keyword">if</span> <span class="hljs-built_in">status</span> == <span class="hljs-string">&#x27;ASSIGNED&#x27;</span> <span class="hljs-keyword">or</span> <span class="hljs-built_in">status</span> == <span class="hljs-string">&#x27;CLAIMING&#x27;</span> <span class="hljs-keyword">then</span><br>  <span class="hljs-keyword">if</span> state[<span class="hljs-number">2</span>] == ARGV[<span class="hljs-number">1</span>] <span class="hljs-keyword">and</span> state[<span class="hljs-number">3</span>] == ARGV[<span class="hljs-number">2</span>] <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> <span class="hljs-number">2</span> <span class="hljs-comment">-- 幂等重试，返回已受理</span><br>  <span class="hljs-keyword">end</span><br>  <span class="hljs-keyword">return</span> <span class="hljs-number">0</span> <span class="hljs-comment">-- 已被别人抢走</span><br><span class="hljs-keyword">end</span><br><br><span class="hljs-keyword">if</span> <span class="hljs-built_in">status</span> ~= <span class="hljs-string">&#x27;AVAILABLE&#x27;</span> <span class="hljs-keyword">then</span><br>  <span class="hljs-keyword">return</span> <span class="hljs-number">0</span><br><span class="hljs-keyword">end</span><br><br><span class="hljs-keyword">local</span> oldIdem = redis.call(<span class="hljs-string">&#x27;GET&#x27;</span>, KEYS[<span class="hljs-number">3</span>])<br><span class="hljs-keyword">if</span> oldIdem <span class="hljs-keyword">then</span><br>  <span class="hljs-keyword">if</span> oldIdem == ARGV[<span class="hljs-number">3</span>] <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> <span class="hljs-number">2</span><br>  <span class="hljs-keyword">end</span><br>  <span class="hljs-keyword">return</span> <span class="hljs-number">3</span> <span class="hljs-comment">-- 同一个幂等键被用于不同请求</span><br><span class="hljs-keyword">end</span><br><br>redis.call(<span class="hljs-string">&#x27;HSET&#x27;</span>, KEYS[<span class="hljs-number">1</span>],<br>  <span class="hljs-string">&#x27;status&#x27;</span>, <span class="hljs-string">&#x27;CLAIMING&#x27;</span>,<br>  <span class="hljs-string">&#x27;winner&#x27;</span>, ARGV[<span class="hljs-number">1</span>],<br>  <span class="hljs-string">&#x27;requestId&#x27;</span>, ARGV[<span class="hljs-number">2</span>],<br>  <span class="hljs-string">&#x27;claimId&#x27;</span>, ARGV[<span class="hljs-number">3</span>],<br>  <span class="hljs-string">&#x27;leaseUntil&#x27;</span>, <span class="hljs-built_in">tostring</span>(<span class="hljs-built_in">tonumber</span>(ARGV[<span class="hljs-number">4</span>]) + <span class="hljs-built_in">tonumber</span>(ARGV[<span class="hljs-number">5</span>])))<br><br>redis.call(<span class="hljs-string">&#x27;SET&#x27;</span>, KEYS[<span class="hljs-number">3</span>], ARGV[<span class="hljs-number">3</span>], <span class="hljs-string">&#x27;EX&#x27;</span>, <span class="hljs-number">86400</span>)<br>redis.call(<span class="hljs-string">&#x27;XADD&#x27;</span>, KEYS[<span class="hljs-number">2</span>], <span class="hljs-string">&#x27;*&#x27;</span>,<br>  <span class="hljs-string">&#x27;orderId&#x27;</span>, ARGV[<span class="hljs-number">6</span>],<br>  <span class="hljs-string">&#x27;userId&#x27;</span>, ARGV[<span class="hljs-number">1</span>],<br>  <span class="hljs-string">&#x27;requestId&#x27;</span>, ARGV[<span class="hljs-number">2</span>],<br>  <span class="hljs-string">&#x27;claimId&#x27;</span>, ARGV[<span class="hljs-number">3</span>])<br><br><span class="hljs-keyword">return</span> <span class="hljs-number">1</span> <span class="hljs-comment">-- 首次受理</span><br></code></pre></td></tr></table></figure>
+
+<p>返回值不要直接映射成 HTTP 成功或失败，而应该映射成稳定的业务状态：</p>
+<ul>
+<li><code>1</code>：首次受理，返回 <code>202 + QUEUED</code>；</li>
+<li><code>2</code>：同一请求重试，返回同一个 <code>claimId</code> 和当前状态；</li>
+<li><code>0</code>：订单不可抢，返回 <code>409</code>；</li>
+<li><code>3</code>：幂等键冲突，返回参数错误或要求客户端换键。</li>
+</ul>
+<p>有几个生产细节必须注意：</p>
+<ul>
+<li>Lua 脚本中的多个 key 必须同槽，否则 Redis Cluster 会直接报错；</li>
+<li>Redis Lua 出错时不会像数据库事务那样整体回滚，脚本越短越安全；</li>
+<li>不要在脚本里遍历大集合，也不要把 <code>KEYS</code> 当业务查询；</li>
+<li>使用 <code>EVALSHA</code> 执行，Spring 的 <code>DefaultRedisScript</code> 会自动处理脚本缓存和降级；</li>
+<li>订单状态预热失败时，宁可拒绝请求，也不要让脚本把未知状态当成可抢。</li>
+</ul>
+<h2 id="六、Java-侧如何调用"><a href="#六、Java-侧如何调用" class="headerlink" title="六、Java 侧如何调用"></a>六、Java 侧如何调用</h2><p>抢单接口可以设计成异步受理接口，不要把 Redis 裁决包装成“最终成功”：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@PostMapping(&quot;/api/v1/orders/&#123;orderId&#125;/claims&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-type">ClaimResponse</span> <span class="hljs-title function_">claim</span><span class="hljs-params">(</span><br><span class="hljs-params">        <span class="hljs-meta">@PathVariable</span> <span class="hljs-type">long</span> orderId,</span><br><span class="hljs-params">        <span class="hljs-meta">@RequestHeader(&quot;Idempotency-Key&quot;)</span> String requestId,</span><br><span class="hljs-params">        Authentication authentication)</span> &#123;<br><br>    <span class="hljs-type">long</span> <span class="hljs-variable">userId</span> <span class="hljs-operator">=</span> currentUserId(authentication);<br>    <span class="hljs-type">int</span> <span class="hljs-variable">partition</span> <span class="hljs-operator">=</span> Math.floorMod(Long.hashCode(orderId), <span class="hljs-number">64</span>);<br>    <span class="hljs-type">String</span> <span class="hljs-variable">tag</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;&#123;p:&quot;</span> + partition + <span class="hljs-string">&quot;&#125;&quot;</span>;<br><br>    <span class="hljs-type">String</span> <span class="hljs-variable">stateKey</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;order:&quot;</span> + tag + <span class="hljs-string">&quot;:&quot;</span> + orderId + <span class="hljs-string">&quot;:state&quot;</span>;<br>    <span class="hljs-type">String</span> <span class="hljs-variable">streamKey</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;claim:stream:&quot;</span> + tag;<br>    <span class="hljs-type">String</span> <span class="hljs-variable">idemKey</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;claim:idem:&quot;</span> + tag + <span class="hljs-string">&quot;:&quot;</span> + userId + <span class="hljs-string">&quot;:&quot;</span> + requestId;<br>    <span class="hljs-type">String</span> <span class="hljs-variable">claimId</span> <span class="hljs-operator">=</span> UUID.randomUUID().toString();<br><br>    <span class="hljs-type">Long</span> <span class="hljs-variable">code</span> <span class="hljs-operator">=</span> redisTemplate.execute(<br>            CLAIM_SCRIPT,<br>            List.of(stateKey, streamKey, idemKey),<br>            String.valueOf(userId),<br>            requestId,<br>            claimId,<br>            String.valueOf(System.currentTimeMillis()),<br>            String.valueOf(<span class="hljs-number">10_000</span>),<br>            String.valueOf(orderId));<br><br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">switch</span> (code.intValue()) &#123;<br>        <span class="hljs-keyword">case</span> <span class="hljs-number">1</span> -&gt; ClaimResponse.queued(claimId);<br>        <span class="hljs-keyword">case</span> <span class="hljs-number">2</span> -&gt; claimQueryService.current(userId, orderId, requestId);<br>        <span class="hljs-keyword">case</span> <span class="hljs-number">0</span> -&gt; ClaimResponse.soldOut();<br>        <span class="hljs-keyword">default</span> -&gt; <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;idempotency key conflict&quot;</span>);<br>    &#125;;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这段代码里有两个很关键的约束：</p>
+<ul>
+<li><code>requestId</code> 应该由客户端生成并在重试时保持不变，服务端还要校验请求体摘要，避免同一个键对应不同订单或不同参数；</li>
+<li><code>userId</code> 必须从登录态中获取，不能直接相信请求体传入的用户 ID。</li>
+</ul>
+<p>实际项目可以把 Redis 调用封装成一个 <code>ClaimGateway</code>，统一负责 key 生成、脚本加载、超时、异常转换和埋点。业务层只关心 <code>ACCEPTED</code>、<code>ALREADY_ACCEPTED</code>、<code>SOLD_OUT</code>、<code>CONFLICT</code> 四种结果。</p>
+<h2 id="七、消费者与-MySQL-写入"><a href="#七、消费者与-MySQL-写入" class="headerlink" title="七、消费者与 MySQL 写入"></a>七、消费者与 MySQL 写入</h2><p>Redis 裁决成功后，消费者从 Stream 读取事件。消费者应该使用 consumer group，而不是让每个实例自己扫描列表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">XREADGROUP GROUP claim-group consumer-1<br>  BLOCK 2000 COUNT 200<br>  STREAMS claim:stream:&#123;p:12&#125; &gt;<br></code></pre></td></tr></table></figure>
+
+<p>消费事件的数据库事务可以简化为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-keyword">public</span> <span class="hljs-type">void</span> <span class="hljs-title function_">persist</span><span class="hljs-params">(ClaimEvent event)</span> &#123;<br>    <span class="hljs-type">int</span> <span class="hljs-variable">inserted</span> <span class="hljs-operator">=</span> claimMapper.insertIgnore(<br>        event.claimId(),<br>        event.orderId(),<br>        event.userId(),<br>        event.requestId()<br>    );<br><br>    <span class="hljs-keyword">if</span> (inserted == <span class="hljs-number">0</span>) &#123;<br>        <span class="hljs-type">ClaimRecord</span> <span class="hljs-variable">old</span> <span class="hljs-operator">=</span> claimMapper.findByOrderId(event.orderId());<br>        <span class="hljs-keyword">if</span> (old == <span class="hljs-literal">null</span> || !old.claimId().equals(event.claimId())) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;duplicate claim with different owner&quot;</span>);<br>        &#125;<br>        <span class="hljs-keyword">return</span>;<br>    &#125;<br><br>    <span class="hljs-type">int</span> <span class="hljs-variable">updated</span> <span class="hljs-operator">=</span> orderMapper.assign(<br>        event.orderId(),<br>        event.userId(),<br>        event.claimId()<br>    );<br><br>    <span class="hljs-keyword">if</span> (updated == <span class="hljs-number">0</span>) &#123;<br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;order already assigned&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>对应表结构：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> order_claim (<br>  id <span class="hljs-type">BIGINT</span> UNSIGNED <span class="hljs-keyword">NOT NULL</span>,<br>  order_id <span class="hljs-type">BIGINT</span> UNSIGNED <span class="hljs-keyword">NOT NULL</span>,<br>  user_id <span class="hljs-type">BIGINT</span> UNSIGNED <span class="hljs-keyword">NOT NULL</span>,<br>  request_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>  claim_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>  status TINYINT <span class="hljs-keyword">NOT NULL</span>,<br>  created_at DATETIME(<span class="hljs-number">3</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">3</span>),<br>  updated_at DATETIME(<span class="hljs-number">3</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">3</span>)<br>    <span class="hljs-keyword">ON</span> <span class="hljs-keyword">UPDATE</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">3</span>),<br>  <span class="hljs-keyword">PRIMARY KEY</span> (id),<br>  <span class="hljs-keyword">UNIQUE</span> KEY uk_order_id (order_id),<br>  <span class="hljs-keyword">UNIQUE</span> KEY uk_user_request (user_id, request_id),<br>  <span class="hljs-keyword">UNIQUE</span> KEY uk_claim_id (claim_id)<br>) ENGINE<span class="hljs-operator">=</span>InnoDB <span class="hljs-keyword">DEFAULT</span> CHARSET<span class="hljs-operator">=</span>utf8mb4;<br></code></pre></td></tr></table></figure>
+
+<p><code>uk_order_id</code> 是最终防线的核心，它保证同一个订单在数据库中不可能出现两个有效赢家。即使 Redis 因故障恢复、重复投递或人工操作产生重复事件，数据库也会拒绝第二个赢家。</p>
+<p>消费者的执行顺序必须是：</p>
+<ol>
+<li>读取事件；</li>
+<li>开启 MySQL 事务并提交；</li>
+<li>执行 Redis 的 <code>MARK_ASSIGNED</code> 脚本；</li>
+<li>Redis 更新成功后 <code>XACK</code>；</li>
+<li>发布“订单已归属”的下游事件。</li>
+</ol>
+<p><strong>不要先 ACK 再写数据库。</strong> 如果进程在两步之间崩溃，事件就永久丢失了。相反，数据库已经提交但 Redis 更新失败或 ACK 失败，事件会被重复消费，而数据库的唯一索引和 <code>claimId</code> 正好用于去重。</p>
+<h3 id="批量库存模型怎么写"><a href="#批量库存模型怎么写" class="headerlink" title="批量库存模型怎么写"></a>批量库存模型怎么写</h3><p>如果抢的是活动库存，MySQL 侧通常写入一张 <code>grab_success</code> 表，至少包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">activity_id, user_id, request_id, claim_id<br>unique(activity_id, user_id)<br>unique(user_id, request_id)<br>unique(claim_id)<br></code></pre></td></tr></table></figure>
+
+<p>Redis 侧把订单状态 Hash 换成活动库存 Hash：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HSET activity:&#123;p:12&#125;:1001 stock 1000 status OPEN<br></code></pre></td></tr></table></figure>
+
+<p>在 Lua 里先判断 <code>stock &gt; 0</code>，再原子执行 <code>HINCRBY stock -1</code> 并写入成功事件。不能先 <code>GET</code>、再在 Java 里判断、最后 <code>DECR</code>，因为这是两个独立命令，会在并发下超卖。</p>
+<h2 id="八、幂等、重试和状态查询"><a href="#八、幂等、重试和状态查询" class="headerlink" title="八、幂等、重试和状态查询"></a>八、幂等、重试和状态查询</h2><p>抢单系统的请求重试非常常见：用户连续点击、移动网络重发、网关超时重试、消费者重复投递。幂等要分两层做：</p>
+<ul>
+<li><strong>请求层</strong>：<code>userId + orderId + requestId</code> 唯一，重复请求返回同一个 <code>claimId</code>；</li>
+<li><strong>事件层</strong>：<code>claimId</code> 唯一，重复消息只允许执行一次业务副作用。</li>
+</ul>
+<p>状态查询接口要根据 <code>claimId</code> 返回同一个结果，而不是重新抢一次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/v1/claims/&#123;claimId&#125;<br><br>QUEUED     已受理，等待数据库确认<br>ASSIGNED   已确认归属<br>FAILED     裁决失败或补偿完成<br>UNKNOWN    系统超时，正在自动核对<br></code></pre></td></tr></table></figure>
+
+<p><code>UNKNOWN</code> 不应被当成失败。很多线上事故不是“数据写错”，而是客户端看到超时后立即重新抢单，造成新的竞争。服务端应该让同一幂等键查询继续返回原状态，直到补偿任务给出最终结果。</p>
+<h2 id="九、失败处理与补偿"><a href="#九、失败处理与补偿" class="headerlink" title="九、失败处理与补偿"></a>九、失败处理与补偿</h2><p>高并发系统一定要先设计失败，而不是只设计成功路径。</p>
+<h3 id="1-Redis-主节点故障"><a href="#1-Redis-主节点故障" class="headerlink" title="1. Redis 主节点故障"></a>1. Redis 主节点故障</h3><p>Redis 故障时，客户端可能遇到超时或连接重置。此时客户端应使用原 <code>requestId</code> 重试；服务端无法确认上一次是否已受理时，返回 <code>503 + retryable=true</code>。不要在没有确认原请求状态时直接换新请求 ID，否则可能重复参与竞争。</p>
+<p>生产环境建议：</p>
+<ul>
+<li>开启 AOF，至少使用 <code>everysec</code>，并根据业务损失容忍度评估是否使用更高持久化等级；</li>
+<li>每个主节点配置副本，使用 Redis Cluster 而不是单点；</li>
+<li>监控 <code>rdb_last_bgsave_status</code>、AOF 重写、主从延迟和 failover 时间；</li>
+<li>将 Redis 当作裁决层而不是唯一事实源，数据库和补偿任务负责最终修复。</li>
+</ul>
+<h3 id="2-Stream-消费积压"><a href="#2-Stream-消费积压" class="headerlink" title="2. Stream 消费积压"></a>2. Stream 消费积压</h3><p>消费者数量不足、数据库变慢或通知系统故障都会让 Stream 堆积。需要监控：</p>
+<ul>
+<li>每个 Stream 的长度；</li>
+<li>consumer group 的 <code>pending</code> 数量；</li>
+<li>最老 pending 消息的等待时间；</li>
+<li>消费失败率、重试次数和死信数量。</li>
+</ul>
+<p>积压时可以先横向扩容消费者，但不能无限扩张数据库连接。更稳妥的方式是按分区消费、批量提交，并在数据库端限制单实例并发。</p>
+<h3 id="3-消费者重复或乱序"><a href="#3-消费者重复或乱序" class="headerlink" title="3. 消费者重复或乱序"></a>3. 消费者重复或乱序</h3><p>Redis Stream 的消费者可能重复拿到同一条消息。数据库事务和唯一索引必须能承受重复执行，处理逻辑要满足：</p>
+<ul>
+<li>同一个 <code>claimId</code> 重放不会增加库存；</li>
+<li>同一个 <code>orderId</code> 只允许一个有效归属；</li>
+<li>后到的旧事件不能覆盖新状态；</li>
+<li>业务状态更新使用 <code>WHERE status = ?</code> 或版本号做条件更新。</li>
+</ul>
+<h3 id="4-超时释放要谨慎"><a href="#4-超时释放要谨慎" class="headerlink" title="4. 超时释放要谨慎"></a>4. 超时释放要谨慎</h3><p>不要把“超过 1 秒没有写数据库”直接等同于失败并释放订单。消费者可能只是暂时 GC、网络抖动或数据库慢查询。更安全的状态机是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">CLAIMING -&gt; 消费者处理中<br>CLAIMING -&gt; UNKNOWN -&gt; 补偿任务核对数据库和 Stream<br>UNKNOWN  -&gt; ASSIGNED<br>UNKNOWN  -&gt; FAILED<br>UNKNOWN  -&gt; RELEASED<br></code></pre></td></tr></table></figure>
+
+<p>释放操作也要通过 Lua 比较 <code>claimId</code> 和当前状态：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs lua"><span class="hljs-keyword">if</span> redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;claimId&#x27;</span>) ~= ARGV[<span class="hljs-number">1</span>] <span class="hljs-keyword">then</span><br>  <span class="hljs-keyword">return</span> <span class="hljs-number">0</span><br><span class="hljs-keyword">end</span><br></code></pre></td></tr></table></figure>
+
+<p>否则一个已经成功提交的订单，可能被旧补偿任务错误释放，随后又被第二个用户抢走。数据库唯一索引仍是最后一道保险，但用户会看到一次错误的“抢到了”再失败，体验很差。</p>
+<h2 id="十、限流、防刷和热点保护"><a href="#十、限流、防刷和热点保护" class="headerlink" title="十、限流、防刷和热点保护"></a>十、限流、防刷和热点保护</h2><p>网关层至少要有按用户、设备、IP 和接口维度的令牌桶限流。抢单接口可以配置为：</p>
+<ul>
+<li>单用户单订单每秒 1 次；</li>
+<li>单用户全局限速，避免脚本批量点击；</li>
+<li>单 IP、单设备并发的宽松阈值，主要拦截异常流量；</li>
+<li>全局入口限流，保护 Redis 和下游数据库。</li>
+</ul>
+<p>限流器可以用 Redis 令牌桶 Lua 脚本实现，但在 Redis 故障时不能直接放行所有请求。更合理的降级是切换到本地 Caffeine 限流器，并降低全局入口配额。</p>
+<p>还需要做：</p>
+<ul>
+<li>登录态校验，用户 ID 只从服务端会话或 JWT 中取；</li>
+<li>请求签名或一次性挑战，增加脚本伪造成本；</li>
+<li>画像、设备指纹和频控规则，异常时触发验证码或排队页；</li>
+<li>订单详情和活动信息走 CDN&#x2F;本地缓存，避免所有流量集中打到数据库。</li>
+</ul>
+<p>热点保护的关键不是把同一个订单拆成多个虚拟库存，而是尽快在 Redis 层拒绝失败请求，只让有限的成功事件进入数据库。</p>
+<h2 id="十一、可观测性与测试"><a href="#十一、可观测性与测试" class="headerlink" title="十一、可观测性与测试"></a>十一、可观测性与测试</h2><p>每一条链路都要能回答两个问题：<strong>这个 claimId 现在在哪里？为什么还没成功？</strong></p>
+<p>建议埋点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">claim_requests_total&#123;result&#125;<br>claim_lua_duration_seconds<br>claim_stream_length<br>claim_stream_pending<br>claim_consumer_retry_total<br>claim_db_duration_seconds<br>claim_assigned_total<br>claim_repair_total<br>claim_unknown_total<br></code></pre></td></tr></table></figure>
+
+<p>日志中至少带上 <code>traceId</code>、<code>claimId</code>、<code>orderId</code>、<code>userId</code>、<code>requestId</code>、状态和重试次数。不要把完整手机号、身份证号或敏感业务参数写进日志。</p>
+<p>测试不能只做单接口压测，还要覆盖正确性：</p>
+<ol>
+<li>使用 Gatling 或 k6 模拟 10 万并发，抢 5 千个订单；</li>
+<li>故意让 30% 请求使用相同幂等键重复发送；</li>
+<li>压测后校验每单只有一个 <code>ASSIGNED</code>，成功数不超过库存；</li>
+<li>验证重复消息、消费者重启和 Redis 主从切换后数据仍然正确；</li>
+<li>注入 MySQL 延迟、消费者暂停、网络丢包，观察 backlog 是否最终收敛；</li>
+<li>统计 Redis evalsha P99、Stream pending、数据库写入 P99 和补偿数量。</li>
+</ol>
+<p>一个简单的数据校验 SQL：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> order_id, <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>)<br><span class="hljs-keyword">FROM</span> order_claim<br><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-number">10</span><br><span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> order_id<br><span class="hljs-keyword">HAVING</span> <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-operator">&gt;</span> <span class="hljs-number">1</span>;<br><br><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>)<br><span class="hljs-keyword">FROM</span> order_claim<br><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-number">10</span>;<br></code></pre></td></tr></table></figure>
+
+<p>第一条必须始终为空，第二条的规定应小于或等于可抢订单数。</p>
+<h2 id="十二、演进路线与落地清单"><a href="#十二、演进路线与落地清单" class="headerlink" title="十二、演进路线与落地清单"></a>十二、演进路线与落地清单</h2><p>如果项目刚开始，不要一开始就上最复杂的分布式事务。可以按下面顺序演进：</p>
+<ol>
+<li>用 Redis Lua 完成原子裁决和幂等；</li>
+<li>用 Redis Stream 串行化成功事件，并让消费者写 MySQL；</li>
+<li>加数据库唯一索引、补偿任务和状态查询；</li>
+<li>当流量或合规要求提高后，把 Stream 替换为 Kafka&#x2F;RocketMQ，并通过 outbox 或中继保证投递；</li>
+<li>最后再做多地域、多集群和更细粒度的容量治理。</li>
+</ol>
+<p>上线前逐项检查：</p>
+<ul>
+<li><input disabled="" type="checkbox"> 单资源是否有数据库唯一约束？</li>
+<li><input disabled="" type="checkbox"> 批量库存是否在 Lua 中原子扣减？</li>
+<li><input disabled="" type="checkbox"> 是否禁止在热点路径上使用 Redis 分布式锁？</li>
+<li><input disabled="" type="checkbox"> 幂等键是否覆盖用户、订单和请求？</li>
+<li><input disabled="" type="checkbox"> 消费者是否在数据库提交后才 ACK？</li>
+<li><input disabled="" type="checkbox"> 是否能在不重新抢单的情况下查询原 claimId？</li>
+<li><input disabled="" type="checkbox"> Redis 故障、MySQL 变慢、消费者重启时是否有降级和补偿？</li>
+<li><input disabled="" type="checkbox"> 是否有限流、防刷、鉴权和请求体校验？</li>
+<li><input disabled="" type="checkbox"> 是否有 P99、pending、补偿次数和最终归属的监控？</li>
+<li><input disabled="" type="checkbox"> 是否用压测和故障注入验证过“不重复、不超卖”？</li>
+</ul>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>高并发抢单的核心不是把数据库优化到极限，而是把系统拆成三层：</p>
+<p><strong>Redis 做瞬时、原子、可重放的裁决；消息系统做削峰和可靠传递；MySQL 做最终事实和唯一性兜底。</strong></p>
+<p>Java 服务保持无状态，Lua 脚本只处理最小状态转移，消费者在事务提交后再更新状态和 ACK，补偿任务负责修复不确定结果。做到这些之后，即使面对几十万 QPS、网络抖动和节点故障，系统仍然可以保持“同一个订单最终只有一个赢家”。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E5%90%8E%E7%AB%AF/" class="category-chain-item">后端</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/MySQL/" class="print-no-link">#MySQL</a>
+      
+        <a href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/" class="print-no-link">#高并发</a>
+      
+        <a href="/tags/%E6%8A%A2%E5%8D%95/" class="print-no-link">#抢单</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>高并发抢单系统设计：从 Redis 原子判重到 MySQL 最终一致性的 Java 实践</div>
+      <div>https://myangchang.github.io/2026/09/16/high-concurrency-order-grabbing-system-design/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>myangChang</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年9月16日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-cc-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/09/13/blog-rebuild-log/" title="博客重构实录：从手写 HTML 到 Hexo + Fluid">
+                        <span class="hidden-mobile">博客重构实录：从手写 HTML 到 Hexo + Fluid</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    function isExpandAllEnabled() {
+      return CONFIG.toc && CONFIG.toc.expand_all === true;
+    }
+    function expandAllToc() {
+      if (!isExpandAllEnabled()) { return; }
+      jQuery('#toc-body .tocbot-is-collapsed').removeClass('tocbot-is-collapsed');
+    }
+    function updateTocToggle($li, $childList) {
+      var $toggle = $li.children('.toc-toggle');
+      if ($toggle.length === 0) { return; }
+      var collapsed = $childList.hasClass('tocbot-is-collapsed');
+      $toggle
+        .toggleClass('toc-toggle-collapsed', collapsed)
+        .toggleClass('toc-toggle-expanded', !collapsed);
+    }
+    function bindTocToggle() {
+      if (!isExpandAllEnabled()) { return; }
+      jQuery('#toc-body .toc-list-item').each(function() {
+        var $li = jQuery(this);
+        var $childList = $li.children('ol');
+        if ($childList.length === 0) {
+          if ($li.children('.toc-toggle').length === 0) {
+            $li.prepend('<span class="toc-toggle toc-toggle-placeholder" aria-hidden="true">›</span>');
+          }
+          return;
+        }
+
+        if ($li.children('.toc-toggle').length === 0) {
+          $li.prepend('<span class="toc-toggle toc-toggle-expanded" aria-hidden="true">›</span>');
+        }
+        updateTocToggle($li, $childList);
+      });
+      jQuery('#toc-body').off('click.tocToggle').on('click.tocToggle', '.toc-toggle', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var $li = jQuery(this).parent('.toc-list-item');
+        var $childList = $li.children('ol');
+        if ($childList.length === 0) { return; }
+        $childList.toggleClass('tocbot-is-collapsed');
+        updateTocToggle($li, $childList);
+      });
+      if (!window.__tocToggleObserver) {
+        window.__tocToggleObserver = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.type !== 'attributes' || mutation.attributeName !== 'class') { return; }
+            var $list = jQuery(mutation.target);
+            var $li = $list.parent('.toc-list-item');
+            if ($li.length === 0) { return; }
+            updateTocToggle($li, $list);
+          });
+        });
+        jQuery('#toc-body ol').each(function() {
+          window.__tocToggleObserver.observe(this, { attributes: true });
+        });
+      }
+    }
+    var tocConfig = Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc);
+    if (isExpandAllEnabled()) {
+      tocConfig.collapseDepth = 6;
+    }
+    window.tocbot.init(tocConfig);
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+    expandAllToc();
+    bindTocToggle();
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+        expandAllToc();
+        bindTocToggle();
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/5.0.0/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

@@ -335,15 +335,15 @@
     <article class="col-12 col-md-12 mx-auto index-info">
       <h2 class="index-header">
         
-        <a href="/2026/09/13/%E6%B5%8B%E8%AF%95/" target="_self">
-          测试
+        <a href="/2026/09/16/high-concurrency-order-grabbing-system-design/" target="_self">
+          高并发抢单系统设计：从 Redis 原子判重到 MySQL 最终一致性的 Java 实践
         </a>
       </h2>
 
       
-      <a class="index-excerpt index-excerpt__noimg" href="/2026/09/13/%E6%B5%8B%E8%AF%95/" target="_self">
+      <a class="index-excerpt index-excerpt__noimg" href="/2026/09/16/high-concurrency-order-grabbing-system-design/" target="_self">
         <div>
-          计算机原理顶峰相见 AI在计算机原理中的应用AI在计算机原理中的应用是一个热门话题，它已经开始改变计算机原理的领域。
+          抢单系统的难点，不是把 UPDATE 语句写得足够快，而是让几十万请求同时到达时，系统仍然满足三个约束：一个订单最多一个赢家、用户重试不会重复抢、最终结果可追踪、可修复。 这篇文章给出一套可以直接落地的 Java 技术方案：Redis 负责瞬时裁决，Redis Stream 或消息队列负责串行化写入，MySQL 负责最终事实，定时任务负责最终一致性。文中的代码以 Spring Boot + Let
         </div>
       </a>
 
@@ -351,8 +351,8 @@
         
           <div class="post-meta mr-3">
             <i class="iconfont icon-date"></i>
-            <time datetime="2026-09-13 17:42" pubdate>
-              2026-09-13
+            <time datetime="2026-09-16 10:00" pubdate>
+              2026-09-16
             </time>
           </div>
         
@@ -367,7 +367,7 @@
     
       <span class="category-chain">
         
-  <a href="/categories/java%E5%BC%80%E5%8F%91/" class="category-chain-item">java开发</a>
+  <a href="/categories/%E5%90%8E%E7%AB%AF/" class="category-chain-item">后端</a>
   
   
 
@@ -382,7 +382,17 @@
           <div class="post-meta">
             <i class="iconfont icon-tags"></i>
             
-              <a href="/tags/%E6%B5%8B%E8%AF%95/">#测试</a>
+              <a href="/tags/Java/">#Java</a>
+            
+              <a href="/tags/Spring-Boot/">#Spring Boot</a>
+            
+              <a href="/tags/Redis/">#Redis</a>
+            
+              <a href="/tags/MySQL/">#MySQL</a>
+            
+              <a href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/">#高并发</a>
+            
+              <a href="/tags/%E6%8A%A2%E5%8D%95/">#抢单</a>
             
           </div>
         
